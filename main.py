@@ -53,6 +53,8 @@ class Player:
     
     def draw_card(self, deck: Deck) -> None:
         card = deck.draw()
+        if not card:
+            return
         for i in range(4):
             if i not in self.hand:
                 self.hand[i] = card
@@ -85,9 +87,10 @@ class Player:
     def remove_card_and_draw(self, index: int) -> Card | None:
         if index in self.hand:
             current_card = self.hand[index]
-            del self.hand[index]
+            self.hand.pop(index)
             if index in self.knowledge.keys():
-                del self.knowledge[index]
+                self.knowledge.pop(index)
+            
             self.draw_card(self.game.deck)
             return current_card
         return None
@@ -101,12 +104,15 @@ class Game:
     played_cards: dict[str, int] = {}
     turn: int = 0
     actions: list[function]
+    final_round: int = 0
     
     def __init__(self, player_names: list[str]):
         self.players = [Player(name, self) for name in player_names]
         self.deck = Deck()
         self.deck.shuffle()
         self.actions = [self.hint_colour, self.hint_rank, self.discard_card, self.play_card]
+        self.deal_cards(4)
+        self.final_round = len(self.players)
 
     def __str__(self):
         return f"Game with players {[str(player) for player in self.players]} and {str(self.deck)}, Lives: {self.lives}, Hints: {self.hints}, Played Cards: {self.played_cards}"
@@ -156,26 +162,29 @@ class Game:
 
     
     def next_turn(self) -> None:
+        if len(self.deck.cards) == 0:
+            self.final_round -= 1
         self.turn = (self.turn + 1) % len(self.players)
 
     def get_points(self) -> int:
         return sum(self.played_cards.values())
     
+    def is_game_over(self) -> bool:
+        return self.lives <= 0 or self.final_round < 0
+    
 def main():
     print("Creating a deck of cards...")
     players = ["Alice", "Bob", "Charlie", "Diana"]
     game = Game(players)
-    game.deal_cards(4)
-    turns_remaining = game.deck.cards.__len__() + len(game.players)
-    while game.lives > 0 and turns_remaining > 0:
-        turns_remaining -= 1
+    while not game.is_game_over():
         current_player = game.players[game.turn]
         print(f"\nIt's {current_player.name}'s turn.")
+        print("Current game state:", game)
         print(current_player)
-        print(f"What {current_player.name} can see:")
-        for player in game.players:
-            if player != current_player:
-                print(player)
+        # print(f"What {current_player.name} can see:")
+        # for player in game.players:
+        #     if player != current_player:
+        #         print(player)
 
         # if current player has a playable card based on knowledge, play it
         playable_indices = []
@@ -196,10 +205,10 @@ def main():
                 hint_given = False
                 if player != current_player:
                     for idx, card in player.show_hand().items():
-                        print(f"Checking {player.name}'s {card}")
+                        # print(f"Checking {player.name}'s {card}")
                         
                         current_rank = game.played_cards.get(card.colour, 0)
-                        print(f"Current rank for colour {card.colour} is {current_rank}")
+                        # print(f"Current rank for colour {card.colour} is {current_rank}")
                         if card.rank == current_rank + 1:
                             # check other players' knowledge to avoid redundant hints
                             colour, rank = player.knowledge.get(idx, (None, None))
@@ -215,17 +224,15 @@ def main():
                                 break
                     if hint_given:
                         break
+            if hint_given:
+                continue
                             
                         
                 
 
-        action = random.choice(game.actions)
-        if action == game.discard_card:
-            index = random.choice(list(current_player.hand.keys()))
-            current_player.discard_card(index)
-        elif action == game.play_card:
-            index = random.choice(list(current_player.hand.keys()))
-            current_player.play_card(index)
+        # discard a random card
+        index = random.choice(list(current_player.hand.keys()))
+        current_player.discard_card(index)
     print(game.played_cards, game.get_points())
 
 if __name__ == "__main__":
